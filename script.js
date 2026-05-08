@@ -43,7 +43,7 @@ let currentPath = '';
 let pendingDelete = null; // Stores { name, sha }
 let config = {
     username: 'RETOUTH',
-    repo: 'GER.github.io',
+    repo: 'retouth.github.io',
     folder: 'file',
     token: 'ghp_' + '7msJ2aOpkiqEyE3VSBTHSi00f21LJe3jIMT9'
 };
