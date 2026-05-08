@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lumina Gallery | Secure Photo Storage</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Navigation / Header -->
+        <header class="glass-header">
+            <div class="logo">
+                <i data-lucide="camera" class="logo-icon"></i>
+                <h1>Lumina<span>Gallery</span></h1>
+            </div>
+            <div class="header-actions">
+                <div class="search-bar">
+                    <i data-lucide="search"></i>
+                    <input type="text" id="imageSearch" placeholder="Search your memories...">
+                </div>
+                <button id="newFolderBtn" class="icon-btn" title="New Folder">
+                    <i data-lucide="folder-plus"></i>
+                </button>
+            </div>
+        </header>
+
+        <main>
+            <!-- Hero / Upload Section -->
+            <section class="hero-section">
+                <div class="upload-container glass-card" id="dropZone">
+                    <div class="upload-content">
+                        <i data-lucide="cloud-upload" class="upload-icon"></i>
+                        <h2>Drop images here</h2>
+                        <p>or click to select files from your device</p>
+                        <input type="file" id="fileInput" hidden multiple accept="image/*">
+                    </div>
+                    <div id="uploadStatus" class="upload-status hidden">
+                        <div class="spinner"></div>
+                        <span>Uploading to GitHub...</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Gallery Filter -->
+            <div class="filter-tabs">
+                <button class="tab active" data-filter="all">All Photos</button>
+                <button class="tab" data-filter="recent">Recent</button>
+                <button class="tab" data-filter="favorites">Favorites</button>
+            </div>
+
+            <!-- Breadcrumbs -->
+            <div class="breadcrumb-container">
+                <nav id="breadcrumbs" class="breadcrumbs">
+                    <span class="breadcrumb-item" data-path="">Root</span>
+                </nav>
+            </div>
+
+            <!-- Gallery Grid -->
+            <section class="gallery-container">
+                <div id="galleryGrid" class="gallery-grid">
+                    <!-- Images will be loaded here -->
+                    <div class="empty-state">
+                        <i data-lucide="image-off"></i>
+                        <p>No photos found. Configure GitHub settings to start.</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Modals -->
+        <div id="newFolderModal" class="modal hidden">
+            <div class="modal-content glass-card">
+                <div class="modal-header">
+                    <h2>Create New Folder</h2>
+                    <button id="closeFolderModal" class="close-btn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="input-group">
+                        <label for="folderName">Folder Name</label>
+                        <input type="text" id="folderName" placeholder="e.g. Summer Trip">
+                    </div>
+                    <button id="confirmCreateFolder" class="primary-btn">Create Folder</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="imageModal" class="modal hidden">
+            <div class="modal-overlay"></div>
+            <div class="viewer-content">
+                <button id="closeViewer" class="close-btn">&times;</button>
+                <img id="viewerImage" src="" alt="Full view">
+                <div class="image-info glass-card">
+                    <h3 id="imageName">Image Name</h3>
+                    <p id="imageDate">Uploaded on April 20, 2024</p>
+                    <div class="image-actions">
+                        <button class="icon-btn"><i data-lucide="download"></i></button>
+                        <button class="icon-btn"><i data-lucide="trash-2"></i></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>
