@@ -11,66 +11,56 @@
     <script src="https://unpkg.com/lucide@latest"></script>
 </head>
 <body>
-    <div class="app-container">
-        <!-- Navigation / Header -->
-        <header class="glass-header">
-            <div class="logo">
-                <i data-lucide="camera" class="logo-icon"></i>
-                <h1>Lumina<span>Gallery</span></h1>
-            </div>
-            <div class="header-actions">
-                <div class="search-bar">
-                    <i data-lucide="search"></i>
-                    <input type="text" id="imageSearch" placeholder="Search your memories...">
-                </div>
-                <button id="newFolderBtn" class="icon-btn" title="New Folder">
-                    <i data-lucide="folder-plus"></i>
-                </button>
-            </div>
-        </header>
-
-        <main>
-            <!-- Hero / Upload Section -->
-            <section class="hero-section">
-                <div class="upload-container glass-card" id="dropZone">
-                    <div class="upload-content">
-                        <i data-lucide="cloud-upload" class="upload-icon"></i>
-                        <h2>Drop images here</h2>
-                        <p>or click to select files from your device</p>
-                        <input type="file" id="fileInput" hidden multiple accept="image/*">
+    <div class="app-layout">
+        <!-- Main Content -->
+        <main class="main-wrapper">
+            <!-- Floating Top Bar -->
+            <header class="floating-header">
+                <div class="header-content glass-card">
+                    <div class="header-left">
+                        <i data-lucide="camera" class="logo-icon"></i>
+                        <nav id="breadcrumbs" class="breadcrumbs">
+                            <span class="breadcrumb-item" data-path="">Vault</span>
+                        </nav>
                     </div>
-                    <div id="uploadStatus" class="upload-status hidden">
-                        <div class="spinner"></div>
-                        <span>Uploading to GitHub...</span>
+                    
+                    <div class="search-box">
+                        <i data-lucide="search"></i>
+                        <input type="text" id="imageSearch" placeholder="Search files...">
+                    </div>
+
+                    <div class="header-right">
+                        <button id="newFolderBtn" class="icon-btn" title="New Folder">
+                            <i data-lucide="folder-plus"></i>
+                        </button>
+                        <div class="user-chip">
+                            <span>R</span>
+                        </div>
                     </div>
                 </div>
-            </section>
+            </header>
 
-            <!-- Gallery Filter -->
-            <div class="filter-tabs">
-                <button class="tab active" data-filter="all">All Photos</button>
-                <button class="tab" data-filter="recent">Recent</button>
-                <button class="tab" data-filter="favorites">Favorites</button>
-            </div>
-
-            <!-- Breadcrumbs -->
-            <div class="breadcrumb-container">
-                <nav id="breadcrumbs" class="breadcrumbs">
-                    <span class="breadcrumb-item" data-path="">Root</span>
-                </nav>
-            </div>
-
-            <!-- Gallery Grid -->
-            <section class="gallery-container">
+            <div class="content-viewport">
                 <div id="galleryGrid" class="gallery-grid">
-                    <!-- Images will be loaded here -->
-                    <div class="empty-state">
-                        <i data-lucide="image-off"></i>
-                        <p>No photos found. Configure GitHub settings to start.</p>
-                    </div>
+                    <!-- Items -->
                 </div>
-            </section>
+            </div>
+
+            <!-- Floating Action Button -->
+            <button class="fab-btn" onclick="document.getElementById('fileInput').click()">
+                <i data-lucide="plus"></i>
+                <span>Upload</span>
+            </button>
+            <input type="file" id="fileInput" hidden multiple>
         </main>
+    </div>
+
+
+    <!-- Upload Progress Toast -->
+    <div id="uploadStatus" class="upload-toast hidden">
+        <div class="spinner-sm"></div>
+        <span>Uploading...</span>
+    </div>
 
         <!-- Modals -->
         <div id="newFolderModal" class="modal hidden">
@@ -92,15 +82,38 @@
         <div id="imageModal" class="modal hidden">
             <div class="modal-overlay"></div>
             <div class="viewer-content">
-                <button id="closeViewer" class="close-btn">&times;</button>
-                <img id="viewerImage" src="" alt="Full view">
-                <div class="image-info glass-card">
-                    <h3 id="imageName">Image Name</h3>
-                    <p id="imageDate">Uploaded on April 20, 2024</p>
-                    <div class="image-actions">
-                        <button class="icon-btn"><i data-lucide="download"></i></button>
-                        <button class="icon-btn"><i data-lucide="trash-2"></i></button>
-                    </div>
+                <div class="viewer-actions">
+                    <button id="viewerZoom" class="icon-btn" title="Toggle Zoom"><i data-lucide="maximize-2"></i></button>
+                    <button id="viewerDownload" class="icon-btn" title="Download"><i data-lucide="download"></i></button>
+                    <button id="viewerDelete" class="icon-btn danger-hover" title="Delete"><i data-lucide="trash-2"></i></button>
+                    <button id="closeViewer" class="icon-btn close-btn" title="Close"><i data-lucide="x"></i></button>
+                </div>
+
+                <button id="prevBtn" class="nav-arrow left"><i data-lucide="chevron-left"></i></button>
+                <div class="viewer-media-container">
+                    <img id="viewerImage" src="" alt="Full view" class="hidden">
+                    <video id="viewerVideo" controls class="hidden"></video>
+                </div>
+                <button id="nextBtn" class="nav-arrow right"><i data-lucide="chevron-right"></i></button>
+                <div id="fileDownloadView" class="hidden">
+                    <i data-lucide="file-text" style="width: 100px; height: 100px; margin-bottom: 1rem;"></i>
+                    <p>File preview not supported</p>
+                </div>
+            </div>
+        </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteModal" class="modal hidden">
+        <div class="modal-content glass-card delete-modal-content">
+            <div class="modal-body text-center">
+                <div class="warning-icon">
+                    <i data-lucide="alert-triangle"></i>
+                </div>
+                <h2 id="deleteModalTitle">Delete Item?</h2>
+                <p id="deleteModalDesc">This action cannot be undone. Are you sure you want to delete <strong id="deleteFileName">item</strong>?</p>
+                <div class="modal-footer">
+                    <button id="cancelDelete" class="secondary-btn">Cancel</button>
+                    <button id="confirmDelete" class="danger-btn">Delete</button>
                 </div>
             </div>
         </div>

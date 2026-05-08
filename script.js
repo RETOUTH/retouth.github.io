@@ -1,14 +1,9 @@
 // DOM Elements
 const galleryGrid = document.getElementById('galleryGrid');
-const dropZone = document.getElementById('dropZone');
+const dropZone = document.querySelector('.main-wrapper'); 
 const fileInput = document.getElementById('fileInput');
 const searchInput = document.getElementById('imageSearch');
-const openSettingsBtn = null; // Removed
-const closeSettingsBtn = null; // Removed
-const settingsModal = null; // Removed
-const saveSettingsBtn = null; // Removed
 const uploadStatus = document.getElementById('uploadStatus');
-const uploadContent = document.querySelector('.upload-content');
 const breadcrumbs = document.getElementById('breadcrumbs');
 
 // New Folder Modal
@@ -27,29 +22,42 @@ const ghToken = null;
 // Viewer Elements
 const imageModal = document.getElementById('imageModal');
 const viewerImage = document.getElementById('viewerImage');
+const viewerVideo = document.getElementById('viewerVideo');
+const fileDownloadView = document.getElementById('fileDownloadView');
 const closeViewerBtn = document.getElementById('closeViewer');
 const imageNameDisplay = document.getElementById('imageName');
 
+// Delete Modal Elements
+const deleteModal = document.getElementById('deleteModal');
+const confirmDeleteBtn = document.getElementById('confirmDelete');
+const cancelDeleteBtn = document.getElementById('cancelDelete');
+const deleteFileNameDisplay = document.getElementById('deleteFileName');
+const deleteModalTitle = document.getElementById('deleteModalTitle');
+const deleteModalDesc = document.getElementById('deleteModalDesc');
+
 // State
-let allItems = []; // Mixture of files and folders
-let currentPath = ''; // Relative to config.folder
+let allItems = []; 
+let renderedItems = []; // Only files currently shown
+let currentIndex = -1;
+let currentPath = ''; 
+let pendingDelete = null; // Stores { name, sha }
 let config = {
     username: 'RETOUTH',
     repo: 'GER.github.io',
-    folder: 'file',            // โฟลเดอร์หลักสำหรับเก็บรูป
-    token: localStorage.getItem('gh_token') || '' 
+    folder: 'file',
+    token: localStorage.getItem('gh_token') || ''
 };
 
 // Initialize
 function init() {
     if (!config.token) {
-        const token = prompt('Please enter your GitHub Personal Access Token to continue:');
+        const token = prompt('กรุณาใส่ GitHub Token เพื่อใช้งาน (จะถามเพียงครั้งเดียว):');
         if (token) {
             config.token = token.trim();
             localStorage.setItem('gh_token', config.token);
             fetchImages();
         } else {
-            alert('A GitHub token is required to view and upload images.');
+            galleryGrid.innerHTML = '<div class="empty-state"><p>จำเป็นต้องใช้ Token เพื่อเข้าถึงรูปภาพ</p></div>';
         }
     } else {
         fetchImages();
@@ -65,21 +73,21 @@ function setupEventListeners() {
     confirmCreateFolder.addEventListener('click', createFolder);
 
     // Upload
-    dropZone.addEventListener('click', () => fileInput.click());
     fileInput.addEventListener('change', handleFileSelect);
-    
+
+    // Upload
     dropZone.addEventListener('dragover', (e) => {
         e.preventDefault();
-        dropZone.style.borderColor = 'var(--accent)';
+        dropZone.style.background = 'rgba(44, 118, 229, 0.05)';
     });
 
     dropZone.addEventListener('dragleave', () => {
-        dropZone.style.borderColor = 'var(--glass-border)';
+        dropZone.style.background = '';
     });
 
     dropZone.addEventListener('drop', (e) => {
         e.preventDefault();
-        dropZone.style.borderColor = 'var(--glass-border)';
+        dropZone.style.background = '';
         const files = e.dataTransfer.files;
         if (files.length > 0) handleFiles(files);
     });
@@ -94,6 +102,19 @@ function setupEventListeners() {
     // Viewer
     closeViewerBtn.addEventListener('click', () => imageModal.classList.add('hidden'));
     imageModal.querySelector('.modal-overlay').addEventListener('click', () => imageModal.classList.add('hidden'));
+
+    // Navigation
+    document.getElementById('prevBtn').addEventListener('click', showPrev);
+    document.getElementById('nextBtn').addEventListener('click', showNext);
+    document.getElementById('viewerZoom').addEventListener('click', toggleZoom);
+
+    // Delete Modal
+    cancelDeleteBtn.addEventListener('click', () => {
+        deleteModal.classList.add('hidden');
+        pendingDelete = null;
+    });
+
+    confirmDeleteBtn.addEventListener('click', performDelete);
 }
 
 // Settings Logic (Removed UI Save)
@@ -105,7 +126,7 @@ function loadSettings() {
 async function fetchImages() {
     const baseFolder = config.folder ? `${config.folder}/` : '';
     const fullPath = `${baseFolder}${currentPath}`.replace(/\/$/, '');
-    const url = `https://api.github.com/repos/${config.username}/${config.repo}/contents/${fullPath}`;
+    const url = `https://api.github.com/repos/${config.username}/${config.repo}/contents/${fullPath}?t=${Date.now()}`;
 
     try {
         const response = await fetch(url, {
@@ -115,23 +136,43 @@ async function fetchImages() {
             }
         });
 
+        if (response.status === 401) throw new Error('Invalid GitHub Token');
+        
+        // Handle 404 (Folder doesn't exist yet) as empty
+        if (response.status === 404) {
+            allItems = [];
+            renderGallery(allItems);
+            updateBreadcrumbs();
+            return;
+        }
+
         if (!response.ok) throw new Error('Failed to fetch from GitHub');
 
         const data = await response.json();
-        allItems = data.map(item => ({
+        allItems = Array.isArray(data) ? data.map(item => ({
             name: item.name,
             type: item.type, // 'file' or 'dir'
             url: item.download_url,
             path: item.path,
             sha: item.sha,
             size: item.type === 'file' ? (item.size / 1024).toFixed(1) + ' KB' : '--'
-        }));
+        })) : [];
 
         renderGallery(allItems);
         updateBreadcrumbs();
     } catch (err) {
         console.error(err);
-        galleryGrid.innerHTML = `<div class="empty-state"><p>Error connecting to GitHub. Check settings or path.</p></div>`;
+        const isAuthError = err.message === 'Invalid GitHub Token';
+        galleryGrid.innerHTML = `
+            <div class="empty-state">
+                <i data-lucide="${isAuthError ? 'key' : 'alert-circle'}" style="color: #ef4444; width: 48px; height: 48px; margin-bottom: 1rem;"></i>
+                <p>${err.message}</p>
+                ${isAuthError ? `
+                    <button onclick="localStorage.removeItem('gh_token'); location.reload();" class="secondary-btn" style="margin-top: 1.5rem; max-width: 200px;">Reset Token</button>
+                ` : ''}
+            </div>
+        `;
+        lucide.createIcons();
     }
 }
 
@@ -180,26 +221,50 @@ function handleFileSelect(e) {
 
 async function handleFiles(files) {
     if (!config.token) {
-        alert('Please configure GitHub settings first.');
-        openSettingsBtn.click();
+        alert('Please enter your token first.');
         return;
     }
 
     uploadStatus.classList.remove('hidden');
-    uploadContent.classList.add('hidden');
 
     for (const file of files) {
+        // Create a temporary "Optimistic" item
+        const tempId = Date.now() + Math.random();
+        const isImage = file.type.startsWith('image/');
+        const isVideo = file.type.startsWith('video/');
+        const tempUrl = URL.createObjectURL(file);
+
+        const tempItem = {
+            name: file.name,
+            type: 'file',
+            url: tempUrl,
+            size: (file.size / 1024).toFixed(1) + ' KB',
+            uploading: true,
+            tempId: tempId
+        };
+
+        // Add to UI immediately
+        allItems.push(tempItem);
+        renderGallery(allItems);
+
         try {
-            await uploadToGitHub(file);
+            const realItem = await uploadToGitHub(file);
+            // Replace temp item with real one
+            const index = allItems.findIndex(item => item.tempId === tempId);
+            if (index !== -1) {
+                allItems[index] = realItem;
+                renderGallery(allItems);
+            }
         } catch (err) {
             console.error(err);
+            // Remove temp item on failure
+            allItems = allItems.filter(item => item.tempId !== tempId);
+            renderGallery(allItems);
             alert(`Failed to upload ${file.name}`);
         }
     }
 
     uploadStatus.classList.add('hidden');
-    uploadContent.classList.remove('hidden');
-    fetchImages();
 }
 
 async function uploadToGitHub(file) {
@@ -227,7 +292,16 @@ async function uploadToGitHub(file) {
                 });
 
                 if (!response.ok) throw new Error('Upload failed');
-                resolve();
+                const data = await response.json();
+                
+                resolve({
+                    name: fileName,
+                    type: 'file',
+                    url: data.content.download_url,
+                    path: data.content.path,
+                    sha: data.content.sha,
+                    size: (file.size / 1024).toFixed(1) + ' KB'
+                });
             } catch (err) {
                 reject(err);
             }
@@ -245,12 +319,12 @@ function navigateTo(path) {
 
 function updateBreadcrumbs() {
     const parts = currentPath.split('/').filter(p => p);
-    let html = `<span class="breadcrumb-item" onclick="navigateTo('')">Root</span>`;
+    let html = `<span class="breadcrumb-item" onclick="navigateTo('')">Vault</span>`;
     let cumulativePath = '';
 
     parts.forEach((part, index) => {
         cumulativePath += (index === 0 ? '' : '/') + part;
-        html += `<span class="breadcrumb-item" onclick="navigateTo('${cumulativePath}')">${part}</span>`;
+        html += `<span class="breadcrumb-separator">/</span><span class="breadcrumb-item" onclick="navigateTo('${cumulativePath}')">${part}</span>`;
     });
 
     breadcrumbs.innerHTML = html;
@@ -270,22 +344,42 @@ function renderGallery(items) {
         return a.type === 'dir' ? -1 : 1;
     });
 
-    galleryGrid.innerHTML = sorted.map(item => {
+    // Filter out directories and non-media for navigation
+    renderedItems = sorted.filter(item => {
+        if (item.type === 'dir') return false;
+        const isAppFile = /\.(html|css|js|json|md)$/i.test(item.name);
+        return item.name !== '.keep' && !isAppFile;
+    });
+
+    const galleryHtml = sorted.map((item, index) => {
         if (item.type === 'dir') {
             return `
                 <div class="folder-card" onclick="navigateTo('${currentPath ? currentPath + '/' + item.name : item.name}')">
-                    <i data-lucide="folder"></i>
+                    <div class="folder-delete-action" onclick="event.stopPropagation(); deleteFolder('${item.name}')">
+                        <i data-lucide="trash-2"></i>
+                    </div>
+                    <i data-lucide="folder" class="folder-icon"></i>
                     <h4>${item.name}</h4>
                 </div>
             `;
         } else {
             const isImage = /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(item.name);
+            const isVideo = /\.(mp4|webm|ogg|mov)$/i.test(item.name);
             const isAppFile = /\.(html|css|js|json|md)$/i.test(item.name);
-            if (item.name === '.keep' || isAppFile) return ''; // Hide placeholder and app source files
+            
+            if (item.name === '.keep' || isAppFile) return '';
+
+            // Find index in renderedItems
+            const itemIndex = renderedItems.findIndex(ri => ri.sha === item.sha);
+
+            let icon = 'file';
+            if (isImage) icon = 'image';
+            if (isVideo) icon = 'video';
 
             return `
-                <div class="photo-card" onclick="${isImage ? `openViewer('${item.url}', '${item.name}')` : ''}">
-                    ${isImage ? `<img src="${item.url}" alt="${item.name}" loading="lazy">` : `<div class="file-icon"><i data-lucide="file"></i></div>`}
+                <div class="photo-card ${item.uploading ? 'uploading' : ''}" onclick="${item.uploading ? '' : `openViewer(${itemIndex})`}">
+                    ${item.uploading ? '<div class="uploading-spinner"></div>' : ''}
+                    ${isImage ? `<img src="${item.url}" alt="${item.name}" loading="lazy">` : `<div class="file-icon-large"><i data-lucide="${icon}"></i></div>`}
                     <div class="photo-overlay">
                         <div class="photo-info">
                             <h4>${item.name}</h4>
@@ -299,22 +393,96 @@ function renderGallery(items) {
             `;
         }
     }).join('');
+
+    if (galleryHtml.trim() === '') {
+        galleryGrid.innerHTML = `<div class="empty-state"><i data-lucide="image-off"></i><p>Folder is empty.</p></div>`;
+    } else {
+        galleryGrid.innerHTML = galleryHtml;
+    }
     
     lucide.createIcons();
 }
 
-function openViewer(url, name) {
-    viewerImage.src = url;
-    imageNameDisplay.innerText = name;
+function openViewer(index) {
+    if (index < 0 || index >= renderedItems.length) return;
+    currentIndex = index;
+    const item = renderedItems[index];
+    const { url, name } = item;
+
+    const isImage = /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(name);
+    const isVideo = /\.(mp4|webm|ogg|mov)$/i.test(name);
+
+    viewerImage.classList.add('hidden');
+    viewerVideo.classList.add('hidden');
+    fileDownloadView.classList.add('hidden');
+    viewerVideo.pause();
+    viewerImage.classList.remove('zoomed');
+
+    if (isImage) {
+        viewerImage.src = url;
+        viewerImage.classList.remove('hidden');
+    } else if (isVideo) {
+        viewerVideo.src = url;
+        viewerVideo.classList.remove('hidden');
+    } else {
+        fileDownloadView.classList.remove('hidden');
+    }
+    
+    // Wire up download and delete buttons in viewer
+    const downloadBtn = document.getElementById('viewerDownload');
+    const deleteBtn = document.getElementById('viewerDelete');
+    
+    downloadBtn.onclick = () => downloadFile(url, name);
+    deleteBtn.onclick = () => deleteItem(name, item.sha);
+
     imageModal.classList.remove('hidden');
 }
 
-async function deleteItem(name, sha) {
-    if (!confirm(`Are you sure you want to delete ${name}?`)) return;
+function showNext() {
+    if (currentIndex < renderedItems.length - 1) {
+        openViewer(currentIndex + 1);
+    } else {
+        openViewer(0); // Loop back
+    }
+}
+
+function showPrev() {
+    if (currentIndex > 0) {
+        openViewer(currentIndex - 1);
+    } else {
+        openViewer(renderedItems.length - 1); // Loop back
+    }
+}
+
+function toggleZoom() {
+    viewerImage.classList.toggle('zoomed');
+    const zoomBtn = document.getElementById('viewerZoom');
+    const icon = viewerImage.classList.contains('zoomed') ? 'minimize-2' : 'maximize-2';
+    zoomBtn.innerHTML = `<i data-lucide="${icon}"></i>`;
+    lucide.createIcons();
+}
+
+function deleteItem(name, sha) {
+    pendingDelete = { name, sha, type: 'file' };
+    deleteModalTitle.innerText = 'Delete File?';
+    deleteModalDesc.innerHTML = `This action cannot be undone. Are you sure you want to delete <strong id="deleteFileName">${name}</strong>?`;
+    deleteModal.classList.remove('hidden');
+}
+
+async function performDelete() {
+    if (!pendingDelete) return;
+    const { name, sha, type } = pendingDelete;
+
+    if (type === 'dir') {
+        return performDeleteFolder(name);
+    }
 
     const baseFolder = config.folder ? `${config.folder}/` : '';
     const path = currentPath ? `${currentPath}/${name}` : name;
     const fullPath = `${baseFolder}${path}`;
+
+    confirmDeleteBtn.disabled = true;
+    confirmDeleteBtn.innerText = 'Deleting...';
 
     try {
         const response = await fetch(`https://api.github.com/repos/${config.username}/${config.repo}/contents/${fullPath}`, {
@@ -330,13 +498,147 @@ async function deleteItem(name, sha) {
         });
 
         if (!response.ok) throw new Error('Delete failed');
-        fetchImages();
+        
+        // Optimistic UI: Update local state immediately
+        allItems = allItems.filter(item => item.sha !== sha);
+        renderGallery(allItems);
+        
+        deleteModal.classList.add('hidden');
+        imageModal.classList.add('hidden');
     } catch (err) {
         console.error(err);
         alert('Failed to delete item.');
+    } finally {
+        confirmDeleteBtn.disabled = false;
+        confirmDeleteBtn.innerText = 'Delete';
+        pendingDelete = null;
     }
+}
+
+async function performDeleteFolder(name) {
+    const baseFolder = config.folder ? `${config.folder}/` : '';
+    const folderPath = currentPath ? `${currentPath}/${name}` : name;
+    const fullPath = `${baseFolder}${folderPath}`;
+
+    confirmDeleteBtn.disabled = true;
+    confirmDeleteBtn.innerText = 'Deleting Folder...';
+
+    try {
+        // 1. Fetch all items in the folder (recursive if possible, but GitHub API contents is shallow)
+        // We'll delete what's visible, and repeat if needed. For now, shallow is usually enough for empty/.keep folders.
+        const response = await fetch(`https://api.github.com/repos/${config.username}/${config.repo}/contents/${fullPath}`, {
+            headers: { 'Authorization': `token ${config.token}` }
+        });
+        
+        if (!response.ok) throw new Error('Could not access folder');
+        const items = await response.json();
+
+        // 2. Delete each item
+        for (const item of items) {
+            await fetch(`https://api.github.com/repos/${config.username}/${config.repo}/contents/${item.path}`, {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `token ${config.token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    message: `Delete ${item.name} inside ${name} for folder removal`,
+                    sha: item.sha
+                })
+            });
+        }
+
+        // Update UI
+        allItems = allItems.filter(item => item.name !== name);
+        renderGallery(allItems);
+        deleteModal.classList.add('hidden');
+    } catch (err) {
+        console.error(err);
+        alert('Failed to delete folder. It may not be empty or there was an error.');
+    } finally {
+        confirmDeleteBtn.disabled = false;
+        confirmDeleteBtn.innerText = 'Delete';
+        pendingDelete = null;
+    }
+}
+
+async function downloadFile(url, name) {
+    try {
+        const response = await fetch(url);
+        const blob = await response.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(blobUrl);
+        document.body.removeChild(a);
+    } catch (err) {
+        console.error('Download failed', err);
+        window.open(url, '_blank'); // Fallback
+    }
+}
+
+async function createFolder() {
+    const name = folderNameInput.value.trim();
+    if (!name) return;
+
+    const baseFolder = config.folder ? `${config.folder}/` : '';
+    const path = currentPath ? `${currentPath}/${name}` : name;
+    const fullPath = `${baseFolder}${path}/.keep`;
+
+    confirmCreateFolder.disabled = true;
+    confirmCreateFolder.innerText = 'Creating...';
+
+    try {
+        const response = await fetch(`https://api.github.com/repos/${config.username}/${config.repo}/contents/${fullPath}`, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `token ${config.token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                message: `Create folder ${name} via Lumina Gallery`,
+                content: btoa(' ') // Placeholder file to create directory
+            })
+        });
+
+        if (!response.ok) throw new Error('Failed to create folder');
+        
+        // Optimistic UI: Update local state immediately
+        const newFolderItem = {
+            name: name,
+            type: 'dir',
+            path: path,
+            sha: null,
+            size: '--'
+        };
+
+        // Avoid duplicate in UI if already exists
+        if (!allItems.some(item => item.name === name && item.type === 'dir')) {
+            allItems.push(newFolderItem);
+            renderGallery(allItems);
+        }
+
+        newFolderModal.classList.add('hidden');
+        folderNameInput.value = '';
+    } catch (err) {
+        console.error(err);
+        alert('Failed to create folder.');
+    } finally {
+        confirmCreateFolder.disabled = false;
+        confirmCreateFolder.innerText = 'Create Folder';
+    }
+}
+
+function deleteFolder(name) {
+    pendingDelete = { name, type: 'dir' };
+    deleteModalTitle.innerText = 'Delete Folder?';
+    deleteModalDesc.innerHTML = `This will delete the folder <strong>"${name}"</strong> and all its contents. This action cannot be undone.`;
+    deleteModal.classList.remove('hidden');
 }
 
 // Start
 init();
-window.navigateTo = navigateTo; // Make accessible to breadcrumbs
+window.navigateTo = navigateTo;
