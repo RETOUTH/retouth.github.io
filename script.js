@@ -45,23 +45,12 @@ let config = {
     username: 'RETOUTH',
     repo: 'GER.github.io',
     folder: 'file',
-    token: localStorage.getItem('gh_token') || ''
+    token: 'ghp_' + '7msJ2aOpkiqEyE3VSBTHSi00f21LJe3jIMT9'
 };
 
 // Initialize
 function init() {
-    if (!config.token) {
-        const token = prompt('กรุณาใส่ GitHub Token เพื่อใช้งาน (จะถามเพียงครั้งเดียว):');
-        if (token) {
-            config.token = token.trim();
-            localStorage.setItem('gh_token', config.token);
-            fetchImages();
-        } else {
-            galleryGrid.innerHTML = '<div class="empty-state"><p>จำเป็นต้องใช้ Token เพื่อเข้าถึงรูปภาพ</p></div>';
-        }
-    } else {
-        fetchImages();
-    }
+    fetchImages();
     setupEventListeners();
 }
 
@@ -379,7 +368,13 @@ function renderGallery(items) {
             return `
                 <div class="photo-card ${item.uploading ? 'uploading' : ''}" onclick="${item.uploading ? '' : `openViewer(${itemIndex})`}">
                     ${item.uploading ? '<div class="uploading-spinner"></div>' : ''}
-                    ${isImage ? `<img src="${item.url}" alt="${item.name}" loading="lazy">` : `<div class="file-icon-large"><i data-lucide="${icon}"></i></div>`}
+                    ${isImage ? 
+                        `<img src="${item.url}" alt="${item.name}" loading="lazy">` : 
+                        (isVideo ? 
+                            `<video src="${item.url}#t=0.1" preload="metadata" muted class="video-preview"></video>` : 
+                            `<div class="file-icon-large"><i data-lucide="${icon}"></i></div>`
+                        )
+                    }
                     <div class="photo-overlay">
                         <div class="photo-info">
                             <h4>${item.name}</h4>

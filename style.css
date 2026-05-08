@@ -278,15 +278,15 @@ body {
     height: 16px;
 }
 
-.photo-card img {
+.photo-card img, .photo-card video.video-preview {
     width: 100%;
     aspect-ratio: 1;
     object-fit: cover;
     transition: var(--transition);
 }
 
-.photo-card:hover img {
-    transform: scale(1.1);
+.photo-card:hover img, .photo-card:hover video.video-preview {
+    transform: scale(1.05);
 }
 
 .photo-overlay {
