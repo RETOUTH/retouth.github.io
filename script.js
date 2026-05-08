@@ -97,6 +97,25 @@ function setupEventListeners() {
     document.getElementById('nextBtn').addEventListener('click', showNext);
     document.getElementById('viewerZoom').addEventListener('click', toggleZoom);
 
+    // Swipe Support for Mobile
+    let touchStartX = 0;
+    let touchEndX = 0;
+
+    imageModal.addEventListener('touchstart', e => {
+        touchStartX = e.changedTouches[0].screenX;
+    }, { passive: true });
+
+    imageModal.addEventListener('touchend', e => {
+        touchEndX = e.changedTouches[0].screenX;
+        const diff = touchStartX - touchEndX;
+        const threshold = 50;
+
+        if (Math.abs(diff) > threshold) {
+            if (diff > 0) showNext();
+            else showPrev();
+        }
+    }, { passive: true });
+
     // Delete Modal
     cancelDeleteBtn.addEventListener('click', () => {
         deleteModal.classList.add('hidden');
